@@ -73,16 +73,9 @@ public class LineGraph : MonoBehaviour
         graphWidth = graphContainer.sizeDelta.x;
         graphHeight = graphContainer.sizeDelta.y;
 
-        var fakeData = new List<DataPoint>();
-        for(int i = 0; i <= 50; i++)
-        {
-            fakeData.Add( new DataPoint { Value = UnityEngine.Random.Range(1, 20), TimeStamp = DateTime.Now + new TimeSpan(0, i, 0) });
-        }
-
-        GraphDataSeries(fakeData);
     }
 
-    private void GraphDataSeries(List<DataPoint> dataSeries)
+    public void GraphDataSeries(List<DataPoint> dataSeries)
     {
         graphedObjList.ForEach(obj => Destroy(obj));
         graphedObjList.Clear();
