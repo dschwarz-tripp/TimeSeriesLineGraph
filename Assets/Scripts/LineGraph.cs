@@ -11,6 +11,8 @@ public class DataPoint
 {
     public DateTime TimeStamp { get; set; }
     public float Value { get; set; }
+
+    public int Label { get; set; }
 }
 
 public class LineGraph : MonoBehaviour
@@ -35,8 +37,14 @@ public class LineGraph : MonoBehaviour
 
     [SerializeField]
     private List<DataPoint> dataToGraphList = new List<DataPoint>();
+    
+    [SerializeField]
+    private TextMeshProUGUI SummaryAverage;
+    [SerializeField]
+    private TextMeshProUGUI SummaryFocus;
+    [SerializeField]
+    private TextMeshProUGUI SummaryTime;
 
-   
     [Header("Axes Values")]
     [SerializeField]
     private TimeAxis xAxis;
@@ -96,6 +104,27 @@ public class LineGraph : MonoBehaviour
         PlotYAxisLabels();
 
         PlotDataPoints(dataToGraphList);
+
+        SetSummaryText(dataToGraphList);
+    }
+
+    private void SetSummaryText(List<DataPoint> dataSeries)
+    {
+        if(SummaryAverage!=null)
+        {
+            SummaryAverage.text = dataSeries.Select(x => x.Value).Average().ToString("F2") + " bpm";
+        }
+
+        if(SummaryFocus!= null )
+        {
+            //calculate or acquire % focus?
+        }
+
+        if(SummaryTime!=null)
+        {
+            var totalTime = xAxis.TotalTimeSpan;
+            SummaryTime.text = totalTime.ToString(@"mm\:ss") + " min";
+        }
     }
 
     private void SetXAxisMinMax(List<DataPoint> dataSeries)
@@ -248,6 +277,7 @@ public class LineGraph : MonoBehaviour
             
             lastDataPoint = newDataPoint;
         }
+
     }
 
     private GameObject CreateDataPoint(Vector2 pos)
