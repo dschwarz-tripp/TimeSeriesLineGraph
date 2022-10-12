@@ -39,7 +39,7 @@ public class LineGraph : MonoBehaviour
    
     [Header("Axes Values")]
     [SerializeField]
-    private XAxis xAxis;
+    private TimeAxis xAxis;
     [SerializeField]
     private YAxis yAxis;
     [SerializeField]
@@ -51,11 +51,12 @@ public class LineGraph : MonoBehaviour
 
     private List<GameObject> graphedObjList = new List<GameObject>();
 
-    private GameObject lastDataPoint;
-
 
     [Space, SerializeField]
     private Color connectorColor = new Color(0, 0, 0, 0.25f);
+    [SerializeField]
+    private float connectorWidth = 2f;
+
     private Vector2 defaultVector = Vector2.zero;
     private Vector3 defaultScale = Vector3.one;
 
@@ -65,9 +66,9 @@ public class LineGraph : MonoBehaviour
         graphHeight = graphContainer.sizeDelta.y;
 
         var fakeData = new List<DataPoint>();
-        for(int i = 0; i < 10; i++)
+        for(int i = 0; i <= 50; i++)
         {
-            fakeData.Add( new DataPoint { Value = UnityEngine.Random.Range(1, 20), TimeStamp = DateTime.Now + new TimeSpan(0, i*10, 0) });
+            fakeData.Add( new DataPoint { Value = UnityEngine.Random.Range(1, 20), TimeStamp = DateTime.Now + new TimeSpan(0, i, 0) });
         }
 
         GraphDataSeries(fakeData);
@@ -114,35 +115,22 @@ public class LineGraph : MonoBehaviour
 
     private void PlotXAxisLabels()
     {        
-        xAxis.MinLabelPos = 0f;
-        xAxis.MaxLabelPos = 0f;
-
-        xAxis.labelCount = Mathf.RoundToInt((float)(xAxis.MaxDateTime - xAxis.MinDateTime).TotalMinutes / this.timeIntervals);
+        xAxis.labelCount = Mathf.RoundToInt((float)(xAxis.MaxDateTime - xAxis.MinDateTime).TotalMinutes / this.timeIntervals) + 1;
 
         float currentLabelPosition;
-        float currentLabelWidth;
         float labelIndex = 0;
+        float labelWidth = graphWidth / (xAxis.labelCount + xAxis.spacing);
 
         for (int i = 0; i < xAxis.labelCount; i++)
         {
             // Labels
-            currentLabelWidth = graphWidth / (xAxis.labelCount + xAxis.spacing);
-            currentLabelPosition = currentLabelWidth + labelIndex * currentLabelWidth;
-
-            if (i == 0)
-            {
-                xAxis.MinLabelPos = currentLabelPosition;
-            }
-            else if (i == xAxis.labelCount - 1)
-            {
-                xAxis.MaxLabelPos = currentLabelPosition;
-            }
+            currentLabelPosition = labelWidth + i * labelWidth;
 
             RectTransform labelRect = Instantiate(tempValueX);
             labelRect.SetParent(graphContainer);
             labelRect.gameObject.SetActive(true);
             labelRect.anchoredPosition = new Vector2(currentLabelPosition, labelRect.position.y);
-            labelRect.GetComponent<TextMeshProUGUI>().text = $"{i} minutes";
+            labelRect.GetComponent<TextMeshProUGUI>().text = $"{i*timeIntervals} minutes";
             labelRect.localScale = defaultScale;
 
             graphedObjList.Add(labelRect.gameObject);
@@ -229,20 +217,21 @@ public class LineGraph : MonoBehaviour
 
     private void PlotDataPoints(List<DataPoint> dataSeries)
     {
-        lastDataPoint = null;
+        GameObject lastDataPoint = null;
 
-        var first = dataSeries.First().TimeStamp;
-
+        var labelWidth = graphWidth / (xAxis.labelCount + xAxis.spacing);
+        var minXLabelPosition = labelWidth;
+        var maxXLabelPosition = xAxis.labelCount * labelWidth;
 
         for (int i = 0; i < dataSeries.Count; i++)
         {
-            var totalMinutes = (float)xAxis.TotalTime.TotalMinutes;
+            var totalMinutes = (float)xAxis.TotalTimeSpan.TotalMinutes;
 
-            var dataPointMinutes = (float)(dataSeries[i].TimeStamp - first).TotalMinutes;
+            var dataPointMinutes = (float)(dataSeries[i].TimeStamp - xAxis.MinDateTime).TotalMinutes;
 
-            var xAxisLabelRange = xAxis.MaxLabelPos - xAxis.MinLabelPos;
+            var xAxisLabelRange = maxXLabelPosition - minXLabelPosition;
 
-            var xAxisGraphPosition = (dataPointMinutes / totalMinutes) * xAxisLabelRange + xAxis.MinLabelPos;
+            var xAxisGraphPosition = (dataPointMinutes / totalMinutes) * xAxisLabelRange + minXLabelPosition;
             var yAxisGraphPosition = (dataSeries[i].Value - yAxis.MinValue) / yAxis.ValueRange * graphHeight;
 
             var dataPosition = new Vector2(xAxisGraphPosition, yAxisGraphPosition);
@@ -290,7 +279,7 @@ public class LineGraph : MonoBehaviour
 
         var connectorRect = connectorObj.GetComponent<RectTransform>();
         connectorRect.anchoredPosition = pointA + connectorDirection * connectorDistance * 0.5f;
-        connectorRect.sizeDelta = new Vector2(connectorDistance, yAxis.gridlineWidth);
+        connectorRect.sizeDelta = new Vector2(connectorDistance, connectorWidth);
         connectorRect.anchorMin = defaultVector;
         connectorRect.anchorMax = defaultVector;
         connectorRect.localEulerAngles = new Vector3(0, 0, connectorAngle);

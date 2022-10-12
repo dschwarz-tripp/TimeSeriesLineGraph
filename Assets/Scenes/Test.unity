@@ -1086,13 +1086,11 @@ MonoBehaviour:
     spacing: 1
   yAxis:
     labelCount: 10
-    gridlineWidth: 2
     spacing: 0.2
-    defaultMinValue: 75
-    defaultMaxValue: 150
   timeIntervals: 10
   plotGridlines: 0
   connectorColor: {r: 1, g: 0.11006278, b: 0.11006278, a: 0.25}
+  connectorWidth: 2
 --- !u!224 &1819729552
 RectTransform:
   m_ObjectHideFlags: 0
