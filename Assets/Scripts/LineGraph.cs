@@ -9,349 +9,293 @@ using TMPro;
 [System.Serializable]
 public class DataPoint
 {
-    public string timeStamp;
-    public int recordedValue;
+    public DateTime TimeStamp { get; set; }
+    public float Value { get; set; }
 }
 
 public class LineGraph : MonoBehaviour
 {
     [Header("Graph Objects")]
     [SerializeField]
-    private RectTransform _graphContainer;
+    private RectTransform graphContainer;
 
     [SerializeField]
-    private RectTransform _tempValueX,
-        _tempValueY;
+    private RectTransform tempValueX, tempValueY;
 
     [SerializeField]
-    private RectTransform _tempGridlineX,
-        _tempGridlineY;
+    private RectTransform tempGridlineX, tempGridlineY;
 
-    private float _graphWidth,
-        _graphHeight;
+    private float graphWidth, graphHeight;
     
     [Header("Graph Data")]
     [SerializeField]
-    private Sprite _dataPointSprite;
+    private Sprite dataPointSprite;
     [SerializeField]
-    private Vector2 _dataPointSize = new Vector2(15f, 15f);
+    private Vector2 dataPointSize = new Vector2(15f, 15f);
+
     [SerializeField]
-    private List<DataPoint> _dataList = new List<DataPoint>();
-    private List<DataPoint> _dataToGraphList = new List<DataPoint>();
-    private DateTime _selectionDate;
+    private List<DataPoint> dataToGraphList = new List<DataPoint>();
 
-    private DateTime _selectedDate;
-    private DateTime[] _timePeriods = new DateTime[]
-    {
-        new DateTime(2001, 01, 01, 0, 0, 0), // Midnight
-        new DateTime(2001, 01, 01, 4, 0, 0), // 4 AM
-        new DateTime(2001, 01, 01, 8, 0, 0), // 8 AM
-        new DateTime(2001, 01, 01, 12, 0, 0), // 12 PM
-        new DateTime(2001, 01, 01, 16, 0, 0), // 4 PM
-        new DateTime(2001, 01, 01, 20, 0, 0), // 8 PM
-        new DateTime(2001, 01, 01, 0, 0, 0) // Midnight
-    };
-
+   
     [Header("Axes Values")]
     [SerializeField]
-    private XAxis _xAxis;
+    private XAxis xAxis;
     [SerializeField]
-    private YAxis _yAxis;
+    private YAxis yAxis;
+    [SerializeField]
+    private int timeIntervals = 10;
 
-    private DateTime _dataPointTimeStamp;
-    private float _dataPointMinutes;
-    private float _totalMinutes;
 
-    private List<GameObject> _graphedObjList = new List<GameObject>();
+    [SerializeField]
+    private bool plotGridlines;
 
-    private GameObject _lastDataPoint;
-    private GameObject _newDataPoint;
-    private GameObject _dataPointObj;
-    private RectTransform _dataPointRect;
-    private Vector2 _dataPosition;
+    private List<GameObject> graphedObjList = new List<GameObject>();
 
-    private GameObject _dataConnector;
-    private GameObject _connectorObj;
-    private RectTransform _connectorRect;
-    private Vector2 _connectorDirection;
-    private float _connectorDistance;
-    private float _connectorAngle;
+    private GameObject lastDataPoint;
+
+
     [Space, SerializeField]
-    private Color _connectorColor = new Color(0, 0, 0, 0.25f);
-
-    private Vector2 _defaultVector = Vector2.zero;
-    private Vector3 _defaultScale = Vector3.one;
+    private Color connectorColor = new Color(0, 0, 0, 0.25f);
+    private Vector2 defaultVector = Vector2.zero;
+    private Vector3 defaultScale = Vector3.one;
 
     private void OnEnable()
     {
-        _graphWidth = _graphContainer.sizeDelta.x;
-        _graphHeight = _graphContainer.sizeDelta.y;
+        graphWidth = graphContainer.sizeDelta.x;
+        graphHeight = graphContainer.sizeDelta.y;
 
-        SetXAxisMinMax();
-
-        _selectedDate = new DateTime(2021, 03, 27);// DateTime.Today;
-
-        CompileGraphData(_selectedDate);
-    }
-
-    private void CompileGraphData(DateTime selectedDate)
-    {
-        foreach (var dataPoint in _dataList)
+        var fakeData = new List<DataPoint>();
+        for(int i = 0; i < 10; i++)
         {
-            _selectionDate = DateTime.Parse(dataPoint.timeStamp);
-
-            if (_selectionDate.Date == selectedDate)
-            {
-                _dataToGraphList.Add(dataPoint);
-            }
+            fakeData.Add( new DataPoint { Value = UnityEngine.Random.Range(1, 20), TimeStamp = DateTime.Now + new TimeSpan(0, i*10, 0) });
         }
 
-        OrderDataByAscending(_dataToGraphList);
-    }
-
-    private void OrderDataByAscending(List<DataPoint> dataToGraph)
-    {
-        var dataSeries = dataToGraph.OrderByDescending(data => DateTime.Parse(data.timeStamp)).Reverse().ToList();
-
-        GraphDataSeries(dataSeries);
+        GraphDataSeries(fakeData);
     }
 
     private void GraphDataSeries(List<DataPoint> dataSeries)
     {
-        _graphedObjList.ForEach(obj => Destroy(obj));
-        _graphedObjList.Clear();
-        
-        SetYAxisMinMax(dataSeries);
+        graphedObjList.ForEach(obj => Destroy(obj));
+        graphedObjList.Clear();
+
+        if(dataSeries.Count <= 2)
+        {
+            Debug.LogError("Cannot plot charts with only two data points");
+            return;
+        }
+
+        dataToGraphList = dataSeries.OrderBy(data => data.TimeStamp).ToList();
+
+        SetXAxisMinMax(dataToGraphList);
+
+        SetYAxisMinMax(dataToGraphList);
 
         PlotXAxisLabels();
 
         PlotYAxisLabels();
 
-        PlotDataPoints(dataSeries);
+        PlotDataPoints(dataToGraphList);
     }
 
-    private void SetXAxisMinMax()
+    private void SetXAxisMinMax(List<DataPoint> dataSeries)
     {
-        _xAxis.minDateTime = _timePeriods[0];
-        
-        _xAxis.maxDateTime = _timePeriods[5].AddMinutes(240); // take time period before the end of the day and add minutes or else will be viewed as the start of the day 
+        xAxis.MinDateTime = dataSeries.First().TimeStamp;
+        xAxis.MaxDateTime = dataSeries.Last().TimeStamp; 
     }
 
     private void SetYAxisMinMax(List<DataPoint> dataSeries)
     {
-        if (dataSeries.Count > 0)
-        {
-            _yAxis.minValue = dataSeries[0].recordedValue;
-            _yAxis.maxValue = dataSeries[0].recordedValue;
+        yAxis.MinValue = dataSeries.Min(x => x.Value);
+        yAxis.MaxValue = dataSeries.Max(x => x.Value);
 
-            for (int i = 0; i < dataSeries.Count; i++)
-            {
-                _yAxis.currentValue = dataSeries[i].recordedValue;
-
-                if (_yAxis.currentValue < _yAxis.minValue)
-                {
-                    _yAxis.minValue = _yAxis.currentValue;
-                }
-
-                if (_yAxis.currentValue > _yAxis.maxValue)
-                {
-                    _yAxis.maxValue = _yAxis.currentValue;
-                }
-            }
-
-            _yAxis.valueRange = _yAxis.maxValue - _yAxis.minValue;
-
-            if (_yAxis.valueRange <= 0)
-            {
-                _yAxis.valueRange = 1f;
-            }
-
-            _yAxis.minValue -= (_yAxis.valueRange * _yAxis.edgeBuffer);
-            _yAxis.maxValue += (_yAxis.valueRange * _yAxis.edgeBuffer);
-        }
-        else
-        {
-            _yAxis.minValue = _yAxis.defaultMinValue;
-            _yAxis.maxValue = _yAxis.defaultMaxValue;
-        }
+        yAxis.MinValue -= (yAxis.ValueRange * yAxis.spacing);
+        yAxis.MaxValue += (yAxis.ValueRange * yAxis.spacing);
     }
 
     private void PlotXAxisLabels()
     {        
-        _xAxis.minLabelPos = 0f;
-        _xAxis.maxLabelPos = 0f;
+        xAxis.MinLabelPos = 0f;
+        xAxis.MaxLabelPos = 0f;
 
-        _xAxis.labelCount = _timePeriods.Length;
+        xAxis.labelCount = Mathf.RoundToInt((float)(xAxis.MaxDateTime - xAxis.MinDateTime).TotalMinutes / this.timeIntervals);
 
-        _xAxis.labelIndex = 0;
+        float currentLabelPosition;
+        float currentLabelWidth;
+        float labelIndex = 0;
 
-        for (int i = 0; i < _xAxis.labelCount; i++)
+        for (int i = 0; i < xAxis.labelCount; i++)
         {
             // Labels
-            _xAxis.currentLabelSpread = _graphWidth / (_xAxis.labelCount + _xAxis.edgeBuffer);
-            _xAxis.currentLabelPos = _xAxis.currentLabelSpread + _xAxis.labelIndex * _xAxis.currentLabelSpread;
+            currentLabelWidth = graphWidth / (xAxis.labelCount + xAxis.spacing);
+            currentLabelPosition = currentLabelWidth + labelIndex * currentLabelWidth;
 
             if (i == 0)
             {
-                _xAxis.minLabelPos = _xAxis.currentLabelPos;
+                xAxis.MinLabelPos = currentLabelPosition;
             }
-            else if (i == _xAxis.labelCount - 1)
+            else if (i == xAxis.labelCount - 1)
             {
-                _xAxis.maxLabelPos = _xAxis.currentLabelPos;
+                xAxis.MaxLabelPos = currentLabelPosition;
             }
 
-            _xAxis.labelRect = Instantiate(_tempValueX);
-            _xAxis.labelRect.SetParent(_graphContainer);
-            _xAxis.labelRect.gameObject.SetActive(true);
-            _xAxis.labelRect.anchoredPosition = new Vector2(_xAxis.currentLabelPos, _xAxis.labelRect.position.y);
-            _xAxis.labelRect.GetComponent<TextMeshProUGUI>().text = _timePeriods[i].ToString("h tt");
-            _xAxis.labelRect.localScale = _defaultScale;
+            RectTransform labelRect = Instantiate(tempValueX);
+            labelRect.SetParent(graphContainer);
+            labelRect.gameObject.SetActive(true);
+            labelRect.anchoredPosition = new Vector2(currentLabelPosition, labelRect.position.y);
+            labelRect.GetComponent<TextMeshProUGUI>().text = $"{i} minutes";
+            labelRect.localScale = defaultScale;
 
-            _graphedObjList.Add(_xAxis.labelRect.gameObject);
+            graphedObjList.Add(labelRect.gameObject);
 
             // Gridlines
-            _xAxis.gridlineRect = Instantiate(_tempGridlineX);
-            _xAxis.gridlineRect.SetParent(_graphContainer);
-            _xAxis.gridlineRect.gameObject.SetActive(true);
-            _xAxis.gridlineRect.anchoredPosition = new Vector2(_xAxis.currentLabelPos, _xAxis.gridlineRect.position.y);
-            _xAxis.gridlineRect.localScale = _defaultScale;
+            if (plotGridlines)
+            {
+                RectTransform gridLineRect = Instantiate(tempGridlineX);
+                gridLineRect.SetParent(graphContainer);
+                gridLineRect.gameObject.SetActive(true);
+                gridLineRect.anchoredPosition = new Vector2(currentLabelPosition, gridLineRect.position.y);
+                gridLineRect.localScale = defaultScale;
 
-            _graphedObjList.Add(_xAxis.gridlineRect.gameObject);
-
-            _xAxis.labelIndex++;
+                graphedObjList.Add(gridLineRect.gameObject);
+            }
+            
+            labelIndex++;
         }
     }
 
     private void PlotYAxisLabels()
     {
-        _yAxis.tempLabelCount = _yAxis.labelCount; // Label count set in Inspector based on preference
+        float tempLabelCount = yAxis.labelCount;
+        float labelPosition, labelPositionNormal;
 
-        if (_yAxis.tempLabelCount > _yAxis.valueRange)
+        if (tempLabelCount > yAxis.ValueRange)
         {
             int addTo(int to)
             {
                 return (to % 2 == 0) ? to : (to + 2);
             }
 
-            if (_yAxis.valueRange % 2 != 0)
+            if (yAxis.ValueRange % 2 != 0)
             {
-                _yAxis.tempLabelCount = addTo((int)_yAxis.valueRange);
+                tempLabelCount = addTo((int)yAxis.ValueRange);
             }
             else
             {
-                _yAxis.tempLabelCount = (int)_yAxis.valueRange;
+                tempLabelCount = (int)yAxis.ValueRange;
             }
 
-            if (_yAxis.valueRange == 1)
+            if (yAxis.ValueRange == 1)
             {
-                _yAxis.tempLabelCount = Mathf.RoundToInt(_yAxis.valueRange) + 3;
-                _yAxis.minValue -= 2;
-                _yAxis.maxValue += 2;
+                tempLabelCount = Mathf.RoundToInt(yAxis.ValueRange) + 3;
+                yAxis.MinValue -= 2;
+                yAxis.MaxValue += 2;
             }
         }
 
-        for (int i = 0; i <= _yAxis.tempLabelCount; i++)
+        for (int i = 0; i <= tempLabelCount; i++)
         {
-            _yAxis.labelPosNormal = (i * 1f) / _yAxis.tempLabelCount;
+            labelPositionNormal = (i * 1f) / tempLabelCount;
 
-            _yAxis.labelPos = _yAxis.minValue + (_yAxis.labelPosNormal * (_yAxis.maxValue - _yAxis.minValue));
+            labelPosition = yAxis.MinValue + (labelPositionNormal * (yAxis.MaxValue - yAxis.MinValue));
 
             // Labels
-            _yAxis.labelRect = Instantiate(_tempValueY);
-            _yAxis.labelRect.SetParent(_graphContainer);
-            _yAxis.labelRect.gameObject.SetActive(true);
-            _yAxis.labelRect.anchoredPosition = new Vector2(_yAxis.labelRect.position.x, _yAxis.labelPosNormal * _graphHeight);
-            _yAxis.labelRect.GetComponent<TextMeshProUGUI>().text = Mathf.RoundToInt(_yAxis.labelPos).ToString();
-            _yAxis.labelRect.localScale = _defaultScale;
 
-            _graphedObjList.Add(_yAxis.labelRect.gameObject);
+            var labelRect = Instantiate(tempValueY);
+            labelRect.SetParent(graphContainer);
+            labelRect.gameObject.SetActive(true);
+            labelRect.anchoredPosition = new Vector2(labelRect.position.x, labelPositionNormal * graphHeight);
+            labelRect.GetComponent<TextMeshProUGUI>().text = Mathf.RoundToInt(labelPosition).ToString();
+            labelRect.localScale = defaultScale;
 
-            // Gridlines
-            if (i != 0 && i != _yAxis.tempLabelCount)
+            graphedObjList.Add(labelRect.gameObject);
+
+            if (plotGridlines)
             {
-                _yAxis.gridlineRect = Instantiate(_tempGridlineY);
-                _yAxis.gridlineRect.SetParent(_graphContainer);
-                _yAxis.gridlineRect.gameObject.SetActive(true);
-                _yAxis.gridlineRect.anchoredPosition = new Vector2(_yAxis.gridlineRect.position.x, _yAxis.labelPosNormal * _graphHeight);
-                _yAxis.gridlineRect.localScale = _defaultScale;
+                // Gridlines
+                if (i != 0 && i != tempLabelCount)
+                {
 
-                _graphedObjList.Add(_yAxis.gridlineRect.gameObject);
+                    var gridlineRect = Instantiate(tempGridlineY);
+                    gridlineRect.SetParent(graphContainer);
+                    gridlineRect.gameObject.SetActive(true);
+                    gridlineRect.anchoredPosition = new Vector2(gridlineRect.position.x, labelPositionNormal * graphHeight);
+                    gridlineRect.localScale = defaultScale;
+
+                    graphedObjList.Add(gridlineRect.gameObject);
+                }
             }
         }
     }
 
     private void PlotDataPoints(List<DataPoint> dataSeries)
     {
-        _lastDataPoint = null;
+        lastDataPoint = null;
 
-        _xAxis.totalTime = TimeSpan.FromTicks(_xAxis.maxDateTime.Ticks - _xAxis.minDateTime.Ticks);
+        var first = dataSeries.First().TimeStamp;
+
 
         for (int i = 0; i < dataSeries.Count; i++)
         {
-            _dataPointTimeStamp = DateTime.Parse(dataSeries[i].timeStamp);
+            var totalMinutes = (float)xAxis.TotalTime.TotalMinutes;
 
-            _dataPointMinutes = (float)(_dataPointTimeStamp.TimeOfDay.TotalMinutes - _xAxis.minDateTime.TimeOfDay.TotalMinutes); 
+            var dataPointMinutes = (float)(dataSeries[i].TimeStamp - first).TotalMinutes;
 
-            _totalMinutes = (float)_xAxis.totalTime.TotalMinutes;
+            var xAxisLabelRange = xAxis.MaxLabelPos - xAxis.MinLabelPos;
 
-            _xAxis.minMaxLabelVariance = _xAxis.maxLabelPos - _xAxis.minLabelPos;
+            var xAxisGraphPosition = (dataPointMinutes / totalMinutes) * xAxisLabelRange + xAxis.MinLabelPos;
+            var yAxisGraphPosition = (dataSeries[i].Value - yAxis.MinValue) / yAxis.ValueRange * graphHeight;
 
-            _xAxis.graphPos = (_dataPointMinutes / _totalMinutes) * _xAxis.minMaxLabelVariance + _xAxis.minLabelPos;
-            _yAxis.graphPos = ((dataSeries[i].recordedValue - _yAxis.minValue) / (_yAxis.maxValue - _yAxis.minValue)) * _graphHeight;
+            var dataPosition = new Vector2(xAxisGraphPosition, yAxisGraphPosition);
 
-            _dataPosition = new Vector2(_xAxis.graphPos, _yAxis.graphPos);
+            var newDataPoint = CreateDataPoint(dataPosition);
 
-            _newDataPoint = CreateDataPoint(_dataPosition);
+            graphedObjList.Add(newDataPoint);
 
-            _graphedObjList.Add(_newDataPoint);
-
-            if (_lastDataPoint != null)
+            if (lastDataPoint != null)
             {
-                _dataConnector = CreateDataConnector(_lastDataPoint.GetComponent<RectTransform>().anchoredPosition, 
-                    _newDataPoint.GetComponent<RectTransform>().anchoredPosition);
-
-                _graphedObjList.Add(_dataConnector);
+                var dataConnector = CreateDataConnector(lastDataPoint.GetComponent<RectTransform>().anchoredPosition, newDataPoint.GetComponent<RectTransform>().anchoredPosition);
+                graphedObjList.Add(dataConnector);
             }
             
-            _lastDataPoint = _newDataPoint;
+            lastDataPoint = newDataPoint;
         }
     }
 
     private GameObject CreateDataPoint(Vector2 pos)
     {
-        _dataPointObj = new GameObject("Data", typeof(Image));
-        _dataPointObj.transform.SetParent(_graphContainer, false);
-        _dataPointObj.GetComponent<Image>().sprite = _dataPointSprite;
+        var dataPointObj = new GameObject("Data", typeof(Image));
+        dataPointObj.transform.SetParent(graphContainer, false);
+        dataPointObj.GetComponent<Image>().sprite = dataPointSprite;
         
-        _dataPointRect = _dataPointObj.GetComponent<RectTransform>();
-        _dataPointRect.anchoredPosition = pos;
-        _dataPointRect.sizeDelta = _dataPointSize;
-        _dataPointRect.anchorMax = _defaultVector;
-        _dataPointRect.anchorMin = _defaultVector;
+        var dataPointRect = dataPointObj.GetComponent<RectTransform>();
+        dataPointRect.anchoredPosition = pos;
+        dataPointRect.sizeDelta = dataPointSize;
+        dataPointRect.anchorMax = defaultVector;
+        dataPointRect.anchorMin = defaultVector;
 
-        return _dataPointObj;
+        return dataPointObj;
     }
 
     private GameObject CreateDataConnector(Vector2 pointA, Vector2 pointB)
     {
-        _connectorObj = new GameObject("Connection", typeof(Image));
-        _connectorObj.transform.SetParent(_graphContainer, false);
-        _connectorObj.GetComponent<Image>().color = _connectorColor;
+        var connectorObj = new GameObject("Connection", typeof(Image));
+        connectorObj.transform.SetParent(graphContainer, false);
+        connectorObj.GetComponent<Image>().color = connectorColor;
 
-        _connectorDirection = (pointB - pointA).normalized;
+        var connectorDirection = (pointB - pointA).normalized;
 
-        _connectorDistance = Vector2.Distance(pointA, pointB);
+        var connectorDistance = Vector2.Distance(pointA, pointB);
 
-        _connectorAngle = Mathf.Atan2(_connectorDirection.y, _connectorDirection.x) * Mathf.Rad2Deg;
+        var connectorAngle = Mathf.Atan2(connectorDirection.y, connectorDirection.x) * Mathf.Rad2Deg;
 
-        _connectorRect = _connectorObj.GetComponent<RectTransform>();
-        _connectorRect.anchoredPosition = pointA + _connectorDirection * _connectorDistance * 0.5f;
-        _connectorRect.sizeDelta = new Vector2(_connectorDistance, _yAxis.gridlineWidth);
-        _connectorRect.anchorMin = _defaultVector;
-        _connectorRect.anchorMax = _defaultVector;
-        _connectorRect.localEulerAngles = new Vector3(0, 0, _connectorAngle);
+        var connectorRect = connectorObj.GetComponent<RectTransform>();
+        connectorRect.anchoredPosition = pointA + connectorDirection * connectorDistance * 0.5f;
+        connectorRect.sizeDelta = new Vector2(connectorDistance, yAxis.gridlineWidth);
+        connectorRect.anchorMin = defaultVector;
+        connectorRect.anchorMax = defaultVector;
+        connectorRect.localEulerAngles = new Vector3(0, 0, connectorAngle);
 
-        return _connectorObj;
+        return connectorObj;
     }
 }
 

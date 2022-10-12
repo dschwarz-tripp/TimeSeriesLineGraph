@@ -7,26 +7,11 @@ using UnityEngine;
 public class XAxis
 {
     public int labelCount = 6;
-    public float edgeBuffer = 1f;
+    public float spacing = 1f;
 
-    public DateTime minDateTime,
-        maxDateTime;
-    public TimeSpan totalTime;
-
-    [HideInInspector]
-    public int labelIndex;
-
-    [HideInInspector]
-    public float minLabelPos,
-        maxLabelPos,
-        minMaxLabelVariance,
-        currentLabelSpread,
-        currentLabelPos;
-
-    [HideInInspector]
-    public RectTransform labelRect,
-        gridlineRect;
-
-    [HideInInspector]
-    public float graphPos;
+    public DateTime MinDateTime { get; set; }
+    public DateTime MaxDateTime { get; set; }
+    public TimeSpan TotalTime => MaxDateTime - MinDateTime;
+    public float MinLabelPos { get; set; }
+    public float MaxLabelPos { get; set; }
 }
