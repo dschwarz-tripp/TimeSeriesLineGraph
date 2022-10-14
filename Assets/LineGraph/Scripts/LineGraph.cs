@@ -11,8 +11,14 @@ public class DataPoint
 {
     public DateTime TimeStamp { get; set; }
     public float Value { get; set; }
+    public string Label { get; set; }
+}
 
-    public int Label { get; set; }
+[Serializable]
+public struct ColorLegend
+{
+    public string Label;
+    public Color Color;
 }
 
 public class LineGraph : MonoBehaviour
@@ -28,6 +34,9 @@ public class LineGraph : MonoBehaviour
     private RectTransform tempGridlineX, tempGridlineY;
 
     private float graphWidth, graphHeight;
+
+    public ColorLegend[] colorLegend;
+    private Dictionary<string, Color> legendLookup;
     
     [Header("Graph Data")]
     [SerializeField]
@@ -37,13 +46,6 @@ public class LineGraph : MonoBehaviour
 
     [SerializeField]
     private List<DataPoint> dataToGraphList = new List<DataPoint>();
-    
-    [SerializeField]
-    private TextMeshProUGUI SummaryAverage;
-    [SerializeField]
-    private TextMeshProUGUI SummaryFocus;
-    [SerializeField]
-    private TextMeshProUGUI SummaryTime;
 
     [Header("Axes Values")]
     [SerializeField]
@@ -61,7 +63,7 @@ public class LineGraph : MonoBehaviour
 
 
     [Space, SerializeField]
-    private Color connectorColor = new Color(0, 0, 0, 0.25f);
+    private Color defaultConnectorColor = new Color(0, 0, 0, 0.25f);
     [SerializeField]
     private float connectorWidth = 2f;
 
@@ -75,10 +77,20 @@ public class LineGraph : MonoBehaviour
 
     }
 
+    public void SetColorLegend(ColorLegend[] colorLegend)
+    {
+        this.colorLegend = colorLegend;
+    }
     public void GraphDataSeries(List<DataPoint> dataSeries)
     {
         graphedObjList.ForEach(obj => Destroy(obj));
         graphedObjList.Clear();
+
+        if(colorLegend!= null)
+        {
+            legendLookup = colorLegend.ToDictionary(x => x.Label, y => y.Color);
+        }
+
 
         if(dataSeries.Count <= 2)
         {
@@ -97,27 +109,6 @@ public class LineGraph : MonoBehaviour
         PlotYAxisLabels();
 
         PlotDataPoints(dataToGraphList);
-
-        SetSummaryText(dataToGraphList);
-    }
-
-    private void SetSummaryText(List<DataPoint> dataSeries)
-    {
-        if(SummaryAverage!=null)
-        {
-            SummaryAverage.text = dataSeries.Select(x => x.Value).Average().ToString("F2") + " bpm";
-        }
-
-        if(SummaryFocus!= null )
-        {
-            //calculate or acquire % focus?
-        }
-
-        if(SummaryTime!=null)
-        {
-            var totalTime = xAxis.TotalTimeSpan;
-            SummaryTime.text = totalTime.ToString(@"mm\:ss") + " min";
-        }
     }
 
     private void SetXAxisMinMax(List<DataPoint> dataSeries)
@@ -152,7 +143,7 @@ public class LineGraph : MonoBehaviour
             labelRect.SetParent(graphContainer);
             labelRect.gameObject.SetActive(true);
             labelRect.anchoredPosition = new Vector2(currentLabelPosition, labelRect.position.y);
-            labelRect.GetComponent<TextMeshProUGUI>().text = $"{i*timeIntervals} minutes";
+            labelRect.GetComponent<TextMeshProUGUI>().text = $"{i*timeIntervals}";
             labelRect.localScale = defaultScale;
 
             graphedObjList.Add(labelRect.gameObject);
@@ -247,6 +238,8 @@ public class LineGraph : MonoBehaviour
 
         for (int i = 0; i < dataSeries.Count; i++)
         {
+            var label = dataSeries[i].Label;
+
             var totalMinutes = (float)xAxis.TotalTimeSpan.TotalMinutes;
 
             var dataPointMinutes = (float)(dataSeries[i].TimeStamp - xAxis.MinDateTime).TotalMinutes;
@@ -258,27 +251,49 @@ public class LineGraph : MonoBehaviour
 
             var dataPosition = new Vector2(xAxisGraphPosition, yAxisGraphPosition);
 
-            var newDataPoint = CreateDataPoint(dataPosition);
+
+            GameObject newDataPoint;
+
+            if (legendLookup != null && legendLookup.ContainsKey(dataSeries[i].Label))
+            {
+                newDataPoint = CreateDataPoint(dataPosition, legendLookup[label]);
+            }
+            else
+            {
+                newDataPoint = CreateDataPoint(dataPosition, defaultConnectorColor);
+            }
 
             graphedObjList.Add(newDataPoint);
 
             if (lastDataPoint != null)
             {
-                var dataConnector = CreateDataConnector(lastDataPoint.GetComponent<RectTransform>().anchoredPosition, newDataPoint.GetComponent<RectTransform>().anchoredPosition);
+                GameObject dataConnector;
+
+                if (legendLookup != null && legendLookup.ContainsKey(dataSeries[i].Label))
+                {
+                    dataConnector = CreateDataConnector(lastDataPoint.GetComponent<RectTransform>().anchoredPosition, newDataPoint.GetComponent<RectTransform>().anchoredPosition, legendLookup[label]);
+                }
+                else
+                {
+                    dataConnector = CreateDataConnector(lastDataPoint.GetComponent<RectTransform>().anchoredPosition, newDataPoint.GetComponent<RectTransform>().anchoredPosition, defaultConnectorColor);
+                }
+
                 graphedObjList.Add(dataConnector);
+
             }
-            
+
             lastDataPoint = newDataPoint;
         }
 
     }
 
-    private GameObject CreateDataPoint(Vector2 pos)
+    private GameObject CreateDataPoint(Vector2 pos, Color color)
     {
         var dataPointObj = new GameObject("Data", typeof(Image));
         dataPointObj.transform.SetParent(graphContainer, false);
         dataPointObj.GetComponent<Image>().sprite = dataPointSprite;
-        
+        dataPointObj.GetComponent<Image>().color = color;
+
         var dataPointRect = dataPointObj.GetComponent<RectTransform>();
         dataPointRect.anchoredPosition = pos;
         dataPointRect.sizeDelta = dataPointSize;
@@ -288,11 +303,11 @@ public class LineGraph : MonoBehaviour
         return dataPointObj;
     }
 
-    private GameObject CreateDataConnector(Vector2 pointA, Vector2 pointB)
+    private GameObject CreateDataConnector(Vector2 pointA, Vector2 pointB, Color color)
     {
         var connectorObj = new GameObject("Connection", typeof(Image));
         connectorObj.transform.SetParent(graphContainer, false);
-        connectorObj.GetComponent<Image>().color = connectorColor;
+        connectorObj.GetComponent<Image>().color = color;
 
         var connectorDirection = (pointB - pointA).normalized;
 
